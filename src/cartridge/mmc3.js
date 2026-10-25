@@ -81,28 +81,20 @@ export class MMC3 {
     this.chr[bank * 0x400 + (a & 0x3ff)] = v & 0xff;
   }
   clockPpuAddress(address, dot = 0) {
-    const a12 = (address & 0x1000) !== 0;
-    // Estimate monotonically increasing PPU dots across scanlines. The PPU
-    // calls this on each memory access; A12 must stay low for >= 8 dots
-    // before its rising edge clocks the MMC3 IRQ counter.
-    const timestamp = this.ppuTimestamp++;
-    if (!a12) {
-      if (this.lastA12) this.a12LowSince = timestamp;
-      this.lastA12 = false;
-      return;
-    }
-    if (!this.lastA12 && timestamp - this.a12LowSince >= 8) {
-      if (this.irqCounter === 0 || this.irqReload) {
-        this.irqCounter = this.irqLatch;
-        this.irqReload = false;
-      } else {
-        this.irqCounter = (this.irqCounter - 1) & 0xff;
-      }
-      if (this.irqCounter === 0 && this.irqEnabled) this.requestIRQ();
-    }
-    this.lastA12 = true;
+    // Retained for compatibility with callers that model real PPU bus edges.
+    // The current renderer batches pixels, so its memory reads are not real-time
+    // bus activity and must not drive MMC3 IRQs.
   }
   clockScanline() {
-    // Kept as a no-op for older callers; MMC3 IRQs are PPU A12-edge driven.
+    // Approximate the MMC3 IRQ counter at a stable point near the end of each
+    // visible scanline. This is much more deterministic than counting batched
+    // renderer reads as A12 transitions, especially for SMB3's split-screen.
+    if (this.irqCounter === 0 || this.irqReload) {
+      this.irqCounter = this.irqLatch;
+      this.irqReload = false;
+    } else {
+      this.irqCounter = (this.irqCounter - 1) & 0xff;
+    }
+    if (this.irqCounter === 0 && this.irqEnabled) this.requestIRQ();
   }
 }

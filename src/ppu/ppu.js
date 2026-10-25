@@ -46,7 +46,12 @@ export class PPU {
 
       if (this.scanline >= 0 && this.scanline < SCREEN_HEIGHT && this.dot === 256) {
         this.renderScanline(this.scanline);
-        // Mapper IRQ timing is driven by PPU A12 transitions in ppuRead().
+      }
+      // MMC3 scanline IRQs are clocked at the end of each visible scanline.
+      // Rendering pixels in a batch must not fabricate dozens of PPU A12
+      // edges at one dot; that made IRQ split-screen effects fire unpredictably.
+      if (this.scanline >= 0 && this.scanline < SCREEN_HEIGHT && this.dot === 260) {
+        this.cartridge?.clockScanline?.();
       }
       if (this.scanline === 241 && this.dot === 2) {
         this.status |= 0x80;
@@ -79,9 +84,6 @@ export class PPU {
 
   ppuRead(address) {
     address &= FRAME_MASK;
-    // MMC3 IRQs are clocked by a filtered rising edge on PPU A12, not by
-    // one synthetic callback per visible scanline.
-    if (this.cartridge?.clockPpuAddress) this.cartridge.clockPpuAddress(address, this.dot);
     if (address < 0x2000) return this.cartridge ? this.cartridge.ppuRead(address) : 0;
     if (address < 0x3f00) {
       if (address >= 0x3000) address -= 0x1000;
@@ -93,7 +95,6 @@ export class PPU {
   ppuWrite(address, value) {
     address &= FRAME_MASK;
     value &= 0xff;
-    if (this.cartridge?.clockPpuAddress) this.cartridge.clockPpuAddress(address, this.dot);
     if (address < 0x2000) {
       this.cartridge?.ppuWrite(address, value);
     } else if (address < 0x3f00) {
