@@ -25,6 +25,9 @@ export class MMC3 {
     this.irqReload = false;
     this.irqEnabled = false;
     this.requestIRQ = requestIRQ;
+    this.lastA12 = false;
+    this.a12LowSince = 0;
+    this.ppuTimestamp = 0;
   }
   cpuRead(a) {
     if (a >= 0x6000 && a < 0x8000) return this.ramEnabled ? this.prgRam[a & 0x1fff] : 0;
@@ -77,10 +80,29 @@ export class MMC3 {
     const bank = this.chrSlots()[a >> 10] % bankCount;
     this.chr[bank * 0x400 + (a & 0x3ff)] = v & 0xff;
   }
-  clockScanline(scanline) {
-    if (scanline < 0 || scanline >= 240) return;
-    if (this.irqCounter === 0 || this.irqReload) { this.irqCounter = this.irqLatch; this.irqReload = false; }
-    else this.irqCounter--;
-    if (this.irqCounter === 0 && this.irqEnabled) this.requestIRQ();
+  clockPpuAddress(address, dot = 0) {
+    const a12 = (address & 0x1000) !== 0;
+    // Estimate monotonically increasing PPU dots across scanlines. The PPU
+    // calls this on each memory access; A12 must stay low for >= 8 dots
+    // before its rising edge clocks the MMC3 IRQ counter.
+    const timestamp = this.ppuTimestamp++;
+    if (!a12) {
+      if (this.lastA12) this.a12LowSince = timestamp;
+      this.lastA12 = false;
+      return;
+    }
+    if (!this.lastA12 && timestamp - this.a12LowSince >= 8) {
+      if (this.irqCounter === 0 || this.irqReload) {
+        this.irqCounter = this.irqLatch;
+        this.irqReload = false;
+      } else {
+        this.irqCounter = (this.irqCounter - 1) & 0xff;
+      }
+      if (this.irqCounter === 0 && this.irqEnabled) this.requestIRQ();
+    }
+    this.lastA12 = true;
+  }
+  clockScanline() {
+    // Kept as a no-op for older callers; MMC3 IRQs are PPU A12-edge driven.
   }
 }
