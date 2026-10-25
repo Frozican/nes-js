@@ -141,7 +141,7 @@ export class PPU {
   }
 
   flushVisiblePixels() {
-    if (this.scanline < 0 || this.scanline >= SCREEN_HEIGHT || !(this.mask & 0x18)) return;
+    if (this.scanline < 0 || this.scanline >= SCREEN_HEIGHT) return;
     const endX = Math.min(256, Math.max(this.renderedX, this.dot));
     if (endX <= this.renderedX) return;
     this.currentY = this.scanline;
