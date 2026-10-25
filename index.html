@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <meta name="description" content="NES-JS — a modular JavaScript NES emulator core.">
+  <title>NES-JS</title>
+  <link rel="stylesheet" href="./src/ui/style.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <p class="eyebrow">OPEN-SOURCE EMULATION PROJECT</p>
+      <h1><span>NES-JS</span></h1>
+      <p class="subtitle">A modular Nintendo Entertainment System emulator core built with plain JavaScript.</p>
+    </header>
+    <section class="panel">
+      <div class="section-heading"><div><p class="eyebrow">EMULATOR CORE</p><h2>Run a ROM</h2></div><span class="chip">iNES 1.0</span></div>
+      <label class="file-picker">Choose a .nes ROM<input id="rom-file" type="file" accept=".nes,application/octet-stream"></label>
+      <p id="status" class="status-text" role="status">Choose a .nes ROM to begin.</p>
+      <div class="screen-wrap"><canvas id="screen" width="256" height="240" aria-label="NES display"></canvas><div id="screen-placeholder" hidden></div></div>
+      <div class="controls-row"><button id="start" disabled>Start emulation</button><button id="pause" class="secondary" disabled>Pause</button><button id="reset" class="secondary" disabled>Reset</button></div>
+      <p class="hint">Keyboard: arrows = D-pad · X = A · Z = B · Enter = Start · Right Shift = Select</p>
+    </section>
+    <footer>NES-JS · MIT License · ROM files are not included.</footer>
+  </main>
+  <script type="module" src="./src/ui/main.js"></script>
+</body>
+</html>
