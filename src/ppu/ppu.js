@@ -43,6 +43,7 @@ export class PPU {
 
       if (this.scanline >= 0 && this.scanline < SCREEN_HEIGHT && this.dot === 256) {
         this.renderScanline(this.scanline);
+        if (this.mask & 0x18) this.cartridge?.clockScanline?.(this.scanline);
       }
       if (this.scanline === 241 && this.dot === 2) {
         this.status |= 0x80;
