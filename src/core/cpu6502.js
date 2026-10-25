@@ -242,7 +242,7 @@ export class CPU6502 {
       // Unofficial ALR, ARR, AXS and immediate XAA variants.
       case 0x4b: this.a=this.shiftRight(this.a&this.fetch()); c=2; break;
       case 0x6b: value=this.a&this.fetch(); this.a=(value>>1)|(this.flag(FLAGS.C)?0x80:0); this.a=this.setZN(this.a); this.setFlag(FLAGS.C,this.a&0x40); this.setFlag(FLAGS.V,((this.a>>6)^(this.a>>5))&1); c=2; break;
-      case 0xcb: value=this.a&this.x; this.x=this.setZN(value-this.fetch()); this.setFlag(FLAGS.C,value>=this.fetch); c=2; break;
+      case 0xcb: value=this.a&this.x; { const operand=this.fetch(); this.x=this.setZN((value-operand)&0xff); this.setFlag(FLAGS.C,value>=operand); } c=2; break;
       case 0x8b: this.a=this.setZN(this.x&this.fetch()); c=2; break;
       // Unofficial ANC immediate (the standard implementation is handled above).
       // Unofficial multi-byte NOPs.
