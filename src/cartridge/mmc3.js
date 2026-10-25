@@ -1,8 +1,11 @@
 export class MMC3 {
   constructor(image, requestIRQ = () => {}) {
     this.prgRom = image.prgRom;
-    this.chr = image.chrRom;
-    this.chrRam = image.chrRam;
+    // CHR-less cartridges use 8 KiB of writable CHR RAM. Keeping an empty
+    // CHR-ROM array here makes every PPU pattern read return undefined/0,
+    // which produces repeated garbage tiles instead of real graphics.
+    this.chrRam = image.chrRam || (!image.chrRom || image.chrRom.length === 0 ? new Uint8Array(8192) : null);
+    this.chr = image.chrRom && image.chrRom.length ? image.chrRom : this.chrRam;
     this.mapper = 4;
     this.mirroring = image.mirroring;
     this.fourScreen = image.mirroring === "four-screen";
@@ -55,8 +58,18 @@ export class MMC3 {
     const normal = [pair0, pair0 + 1, pair1, pair1 + 1, r[2], r[3], r[4], r[5]];
     return (this.bankSelect & 0x80) ? [...normal.slice(4), ...normal.slice(0, 4)] : normal;
   }
-  ppuRead(a) { return this.chr[(this.chrSlots()[a >> 10] * 0x400 + (a & 0x3ff)) % this.chr.length]; }
-  ppuWrite(a, v) { if (this.chrRam) this.chr[(this.chrSlots()[a >> 10] * 0x400 + (a & 0x3ff)) % this.chr.length] = v & 0xff; }
+  ppuRead(a) {
+    if (!this.chr || this.chr.length === 0) return 0;
+    const bankCount = Math.max(1, this.chr.length >> 10);
+    const bank = this.chrSlots()[a >> 10] % bankCount;
+    return this.chr[bank * 0x400 + (a & 0x3ff)] ?? 0;
+  }
+  ppuWrite(a, v) {
+    if (!this.chrRam || !this.chr || this.chr.length === 0) return;
+    const bankCount = Math.max(1, this.chr.length >> 10);
+    const bank = this.chrSlots()[a >> 10] % bankCount;
+    this.chr[bank * 0x400 + (a & 0x3ff)] = v & 0xff;
+  }
   clockScanline(scanline) {
     if (scanline < 0 || scanline >= 240) return;
     if (this.irqCounter === 0 || this.irqReload) { this.irqCounter = this.irqLatch; this.irqReload = false; }
