@@ -91,6 +91,8 @@ export class CPU6502 {
       case 0xe9: case 0xeb: this.sbc(this.fetch()); c=2; break;
       case 0x24: value=this.read(this.fetch()); this.setFlag(FLAGS.Z,(this.a & value)===0); this.setFlag(FLAGS.V,value & 0x40); this.setFlag(FLAGS.N,value & 0x80); c=3; break;
       case 0x2c: value=this.read(this.fetch16()); this.setFlag(FLAGS.Z,(this.a & value)===0); this.setFlag(FLAGS.V,value & 0x40); this.setFlag(FLAGS.N,value & 0x80); c=4; break;
+      // Unofficial ANC: AND immediate, then copy bit 7 into carry.
+      case 0x0b: case 0x2b: this.a=this.setZN(this.a&this.fetch()); this.setFlag(FLAGS.C,this.a&0x80); c=2; break;
       case 0x29: this.a=this.setZN(this.a&this.fetch()); c=2; break;
       case 0x09: this.a=this.setZN(this.a|this.fetch()); c=2; break;
       case 0x49: this.a=this.setZN(this.a^this.fetch()); c=2; break;
