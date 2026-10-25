@@ -208,6 +208,8 @@ export class CPU6502 {
       case 0x7e: addr=(this.fetch16()+this.x)&0xffff; this.write(addr,this.rotateRight(this.read(addr))); c=7; break;
       case 0x9a: this.sp=this.x; c=2; break;
       case 0xba: this.x=this.setZN(this.sp); c=2; break;
+      // Unofficial SLO (ASL memory, then ORA accumulator).
+      case 0x03: addr=this.readIndirectX(); value=this.shiftLeft(this.read(addr)); this.write(addr,value); this.a=this.setZN(this.a|value); c=8; break;
       case 0xa7: this.x=this.a=this.setZN(this.read(this.fetch())); c=3; break;
       case 0xa3: this.x=this.a=this.setZN(this.read(this.readIndirectX())); c=6; break;
       case 0xb3: this.x=this.a=this.setZN(this.read(this.readIndirectY())); c=5; break;
