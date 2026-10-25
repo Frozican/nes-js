@@ -22,6 +22,7 @@ export class PPU {
     this.ioLatch = 0;
     this.scanline = 261;
     this.dot = 0;
+    this.renderedX = 0;
     this.nmiCallback = null;
     this.lastPpuAddress = 0;
     this.ppuAddressLowDots = 0;
@@ -55,6 +56,7 @@ export class PPU {
       if (this.dot >= 341) {
         this.dot = 0;
         this.scanline = (this.scanline + 1) % 262;
+        this.renderedX = 0;
       }
     }
   }
@@ -138,7 +140,23 @@ export class PPU {
     }
   }
 
+  flushVisiblePixels() {
+    if (this.scanline < 0 || this.scanline >= SCREEN_HEIGHT || !(this.mask & 0x18)) return;
+    const endX = Math.min(256, Math.max(this.renderedX, this.dot));
+    if (endX <= this.renderedX) return;
+    this.currentY = this.scanline;
+    const rowOffset = this.scanline * SCREEN_WIDTH;
+    for (let x = this.renderedX; x < endX; x++) {
+      const bg = this.backgroundPixel(x, this.scanline);
+      this.framebuffer[rowOffset + x] = (0xff000000 | NES_PALETTE[bg.color]) >>> 0;
+    }
+    this.renderedX = endX;
+    this.currentY = 0;
+  }
+
   cpuWrite(address, value) {
+    // Preserve pixels already elapsed before a scroll/mask/control write.
+    this.flushVisiblePixels();
     value &= 0xff;
     this.ioLatch = value;
     switch (address & 7) {
@@ -268,10 +286,11 @@ export class PPU {
   renderScanline(y) {
     this.currentY = y;
     const rowOffset = y * SCREEN_WIDTH;
-    for (let x = 0; x < SCREEN_WIDTH; x++) {
+    for (let x = this.renderedX; x < SCREEN_WIDTH; x++) {
       const bg = this.backgroundPixel(x, y);
       this.framebuffer[rowOffset + x] = (0xff000000 | NES_PALETTE[bg.color]) >>> 0;
     }
+    this.renderedX = SCREEN_WIDTH;
     this.drawSprites();
     this.currentY = 0;
   }
@@ -285,6 +304,7 @@ export class PPU {
     this.frame = 0;
     this.scanline = 261;
     this.dot = 0;
+    this.renderedX = 0;
     this.status = 0;
     this.control = 0;
     this.mask = 0;
