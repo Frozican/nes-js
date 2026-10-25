@@ -1,53 +1,33 @@
 # NES-JS
 
-A modular, browser-based Nintendo Entertainment System (NES) emulator core written in plain JavaScript. It runs directly in the browser and is hosted on GitHub Pages; no server or build step is required.
+A modular browser-based NES emulator written in plain JavaScript. It runs in the browser and can be hosted on GitHub Pages without a server or build step.
 
 **Live demo:** https://frozican.github.io/nes-js/
 
 ## Features
-
-- 6502-family CPU core with the official instruction set
-- NES bus, controller input, PPU framebuffer and scanline rendering
-- iNES 1.0 ROM loading
-- Cartridge mappers: NROM (0), UxROM (2), and CNROM (3)
-- Browser UI with keyboard controls
-- ES modules; no runtime dependencies
+- 6502-family CPU core and NES PPU renderer
+- iNES 1.0 ROM loading, including trainer offsets
+- Mapper support: NROM (0), MMC1 (1), UxROM (2), CNROM (3), AxROM (7)
+- Initial browser APU synthesis for pulse, triangle and noise channels using Web Audio
+- Keyboard controller; no bundled ROMs and no runtime dependencies
 
 ## Run
-
-1. Open the [live demo](https://frozican.github.io/nes-js/).
-2. Choose a legally obtained `.nes` ROM,.
-3. Select **Start emulation** if it is not already running.
-4. Use the keyboard controls shown below the screen.
+1. Open the live demo.
+2. Choose a legally obtained `.nes` ROM.
+3. Press **Start emulation**. Audio starts after this user gesture.
+4. Controls: arrows = D-pad, X = A, Z = B, Enter = Start, Right Shift = Select.
 
 You can also serve the repository root with any static HTTP server. ES modules may not load correctly when opening `index.html` directly as a `file://` URL.
 
-## Controls
-
-| Key | NES input |
-|---|---|
-| Arrow keys | D-pad |
-| X | A |
-| Z | B |
-| Enter | Start |
-| Right Shift | Select |
-
 ## Project structure
-
-- `src/core/` — CPU, bus, controller, shared constants and top-level NES system
+- `src/core/` — CPU, bus, APU, controller and NES system
 - `src/cartridge/` — iNES parser and mapper implementations
-- `src/ppu/` — PPU registers, memory mapping, scanline renderer and framebuffer
-- `src/ui/` — browser frontend and styling
-- [`ARCHITECTURE.md`](ARCHITECTURE.md) — detailed module boundaries, data flow and implementation notes
+- `src/ppu/` — PPU registers, memory mapping and framebuffer
+- `src/ui/` — browser frontend
+- [`ARCHITECTURE.md`](ARCHITECTURE.md) — module boundaries and data flow
 
-## Scope and limitations
-
-This is an **early-stage emulator core**, not a cycle-accurate or compatibility-complete emulator. Rendering and timing are simplified, and only the listed mappers are implemented. Some games may fail to boot, render incorrectly, or behave differently from hardware. Audio emulation is not currently implemented.
-
-No test ROM is bundled with this project. Load your own legally obtained `.nes` file to try the emulator.
-
-ROM files are selected locally and are not uploaded by this page. No commercial ROMs or BIOS files are included.
+## Compatibility notes
+This remains an early-stage emulator, not a cycle-accurate or compatibility-complete implementation. Audio is an initial synthesis approximation; envelope, sweep, frame sequencing, DMC, IRQ behavior and accurate mixing are incomplete. Mapper 1 and mapper 7 support is preliminary. Many commercial games may still fail because mapper coverage, CPU/PPU timing, sprite behavior, interrupts and NES 2.0 support are incomplete. No test ROM is bundled. ROM files are selected locally and are not uploaded.
 
 ## License
-
 MIT. See [LICENSE](LICENSE).
