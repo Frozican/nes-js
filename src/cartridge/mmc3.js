@@ -4,8 +4,14 @@ export class MMC3 {
     // CHR-less cartridges use 8 KiB of writable CHR RAM. Keeping an empty
     // CHR-ROM array here makes every PPU pattern read return undefined/0,
     // which produces repeated garbage tiles instead of real graphics.
-    this.chrRam = image.chrRam || (!image.chrRom || image.chrRom.length === 0 ? new Uint8Array(8192) : null);
-    this.chr = image.chrRom && image.chrRom.length ? image.chrRom : this.chrRam;
+    // parseINES exposes chrRam as a boolean and may provide a zero-filled
+    // chrRom buffer for the RAM-backed pattern table. Keep a writable backing
+    // store and never mistake that boolean for the CHR memory itself.
+    const hasChrRom = !!image.chrRom && image.chrRom.length > 0 && !image.chrRam;
+    this.chrRam = image.chrRam
+      ? (image.chrRom && image.chrRom.length ? image.chrRom : new Uint8Array(image.chrRamSize || 8192))
+      : null;
+    this.chr = hasChrRom ? image.chrRom : (this.chrRam || new Uint8Array(8192));
     this.mapper = 4;
     this.mirroring = image.mirroring;
     this.fourScreen = image.mirroring === "four-screen";
@@ -25,11 +31,12 @@ export class MMC3 {
     if (a < 0x8000) return null;
     const slots = this.prgSlots();
     const slot = (a - 0x8000) >> 13;
-    return this.prgRom[(slots[slot] * 0x2000 + (a & 0x1fff)) % this.prgRom.length];
+    if (!this.prgRom || this.prgRom.length === 0) return 0;
+    return this.prgRom[(slots[slot] * 0x2000 + (a & 0x1fff)) % this.prgRom.length] ?? 0;
   }
   prgSlots() {
-    const count = this.prgRom.length >> 13;
-    const last = count - 1, penultimate = count - 2;
+    const count = Math.max(1, this.prgRom.length >> 13);
+    const last = count - 1, penultimate = Math.max(0, count - 2);
     const r6 = this.bankRegs[6] % count, r7 = this.bankRegs[7] % count;
     return (this.bankSelect & 0x40) ? [penultimate, r7, r6, last] : [r6, r7, penultimate, last];
   }
