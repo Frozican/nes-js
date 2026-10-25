@@ -219,6 +219,81 @@ export class CPU6502 {
       case 0xaf: this.x=this.a=this.setZN(this.read(this.fetch16())); c=4; break;
       case 0xbf: this.x=this.a=this.setZN(this.read(this.indexedAddress(this.fetch16(),this.y))); c=4+(this.pageCrossed?1:0); break;
 
+      // Remaining official and common unofficial NMOS 6502 instructions.
+      // KIL/JAM opcodes stop execution by throwing a descriptive error.
+      case 0x02: case 0x12: case 0x22: case 0x32: case 0x42: case 0x52: case 0x62: case 0x72: case 0x92: case 0xb2: case 0xd2: case 0xf2:
+        throw new Error(`CPU halted by unofficial KIL opcode at ${((this.pc-1)&0xffff).toString(16).padStart(4,"0").toUpperCase()}`);
+      // Implied flag/register instructions.
+      case 0x08: break;
+      // Unofficial NOPs with immediate operands.
+      case 0x0b: case 0x2b: break;
+      // Unofficial LAX (load A and X), all common addressing modes.
+      case 0xa7: this.a=this.x=this.setZN(this.read(this.fetch())); c=3; break;
+      case 0xb7: this.a=this.x=this.setZN(this.read(this.readZeroPageY())); c=4; break;
+      case 0xaf: this.a=this.x=this.setZN(this.read(this.fetch16())); c=4; break;
+      case 0xbf: this.a=this.x=this.setZN(this.read(this.indexedAddress(this.fetch16(),this.y))); c=4+(this.pageCrossed?1:0); break;
+      case 0xa3: this.a=this.x=this.setZN(this.read(this.readIndirectX())); c=6; break;
+      case 0xb3: this.a=this.x=this.setZN(this.read(this.readIndirectY())); c=5+(this.pageCrossed?1:0); break;
+      // Unofficial SAX (store A AND X).
+      case 0x87: this.write(this.fetch(),this.a&this.x); c=3; break;
+      case 0x97: this.write(this.readZeroPageY(),this.a&this.x); c=4; break;
+      case 0x8f: this.write(this.fetch16(),this.a&this.x); c=4; break;
+      case 0x83: this.write(this.readIndirectX(),this.a&this.x); c=6; break;
+      // Unofficial ALR, ARR, AXS and immediate XAA variants.
+      case 0x4b: this.a=this.shiftRight(this.a&this.fetch()); c=2; break;
+      case 0x6b: value=this.a&this.fetch(); this.a=(value>>1)|(this.flag(FLAGS.C)?0x80:0); this.a=this.setZN(this.a); this.setFlag(FLAGS.C,this.a&0x40); this.setFlag(FLAGS.V,((this.a>>6)^(this.a>>5))&1); c=2; break;
+      case 0xcb: value=this.a&this.x; this.x=this.setZN(value-this.fetch()); this.setFlag(FLAGS.C,value>=this.fetch); c=2; break;
+      case 0x8b: this.a=this.setZN(this.x&this.fetch()); c=2; break;
+      // Unofficial ANC immediate (the standard implementation is handled above).
+      // Unofficial multi-byte NOPs.
+      case 0x1a: case 0x3a: case 0x5a: case 0x7a: case 0xda: case 0xfa: c=2; break;
+      // Unofficial SLO: ASL memory then ORA A.
+      case 0x07: addr=this.fetch(); value=this.shiftLeft(this.read(addr)); this.write(addr,value); this.a=this.setZN(this.a|value); c=5; break;
+      case 0x17: addr=this.readZeroPageX(); value=this.shiftLeft(this.read(addr)); this.write(addr,value); this.a=this.setZN(this.a|value); c=6; break;
+      case 0x0f: addr=this.fetch16(); value=this.shiftLeft(this.read(addr)); this.write(addr,value); this.a=this.setZN(this.a|value); c=6; break;
+      case 0x1f: addr=(this.fetch16()+this.x)&0xffff; value=this.shiftLeft(this.read(addr)); this.write(addr,value); this.a=this.setZN(this.a|value); c=7; break;
+      case 0x1b: addr=(this.fetch16()+this.y)&0xffff; value=this.shiftLeft(this.read(addr)); this.write(addr,value); this.a=this.setZN(this.a|value); c=7; break;
+      case 0x13: addr=this.readIndirectY(); value=this.shiftLeft(this.read(addr)); this.write(addr,value); this.a=this.setZN(this.a|value); c=8; break;
+      // Unofficial RLA: ROL memory then AND A.
+      case 0x23: addr=this.readIndirectX(); value=this.rotateLeft(this.read(addr)); this.write(addr,value); this.a=this.setZN(this.a&value); c=8; break;
+      case 0x27: addr=this.fetch(); value=this.rotateLeft(this.read(addr)); this.write(addr,value); this.a=this.setZN(this.a&value); c=5; break;
+      case 0x37: addr=this.readZeroPageX(); value=this.rotateLeft(this.read(addr)); this.write(addr,value); this.a=this.setZN(this.a&value); c=6; break;
+      case 0x2f: addr=this.fetch16(); value=this.rotateLeft(this.read(addr)); this.write(addr,value); this.a=this.setZN(this.a&value); c=6; break;
+      case 0x3f: addr=(this.fetch16()+this.x)&0xffff; value=this.rotateLeft(this.read(addr)); this.write(addr,value); this.a=this.setZN(this.a&value); c=7; break;
+      case 0x3b: addr=(this.fetch16()+this.y)&0xffff; value=this.rotateLeft(this.read(addr)); this.write(addr,value); this.a=this.setZN(this.a&value); c=7; break;
+      case 0x33: addr=this.readIndirectY(); value=this.rotateLeft(this.read(addr)); this.write(addr,value); this.a=this.setZN(this.a&value); c=8; break;
+      // Unofficial SRE: LSR memory then EOR A.
+      case 0x43: addr=this.readIndirectX(); value=this.shiftRight(this.read(addr)); this.write(addr,value); this.a=this.setZN(this.a^value); c=8; break;
+      case 0x47: addr=this.fetch(); value=this.shiftRight(this.read(addr)); this.write(addr,value); this.a=this.setZN(this.a^value); c=5; break;
+      case 0x57: addr=this.readZeroPageX(); value=this.shiftRight(this.read(addr)); this.write(addr,value); this.a=this.setZN(this.a^value); c=6; break;
+      case 0x4f: addr=this.fetch16(); value=this.shiftRight(this.read(addr)); this.write(addr,value); this.a=this.setZN(this.a^value); c=6; break;
+      case 0x5f: addr=(this.fetch16()+this.x)&0xffff; value=this.shiftRight(this.read(addr)); this.write(addr,value); this.a=this.setZN(this.a^value); c=7; break;
+      case 0x5b: addr=(this.fetch16()+this.y)&0xffff; value=this.shiftRight(this.read(addr)); this.write(addr,value); this.a=this.setZN(this.a^value); c=7; break;
+      case 0x53: addr=this.readIndirectY(); value=this.shiftRight(this.read(addr)); this.write(addr,value); this.a=this.setZN(this.a^value); c=8; break;
+      // Unofficial RRA: ROR memory then ADC.
+      case 0x63: addr=this.readIndirectX(); value=this.rotateRight(this.read(addr)); this.write(addr,value); this.adc(value); c=8; break;
+      case 0x67: addr=this.fetch(); value=this.rotateRight(this.read(addr)); this.write(addr,value); this.adc(value); c=5; break;
+      case 0x77: addr=this.readZeroPageX(); value=this.rotateRight(this.read(addr)); this.write(addr,value); this.adc(value); c=6; break;
+      case 0x6f: addr=this.fetch16(); value=this.rotateRight(this.read(addr)); this.write(addr,value); this.adc(value); c=6; break;
+      case 0x7f: addr=(this.fetch16()+this.x)&0xffff; value=this.rotateRight(this.read(addr)); this.write(addr,value); this.adc(value); c=7; break;
+      case 0x7b: addr=(this.fetch16()+this.y)&0xffff; value=this.rotateRight(this.read(addr)); this.write(addr,value); this.adc(value); c=7; break;
+      case 0x73: addr=this.readIndirectY(); value=this.rotateRight(this.read(addr)); this.write(addr,value); this.adc(value); c=8; break;
+      // Unofficial DCP: decrement memory then compare A.
+      case 0xc7: addr=this.fetch(); value=(this.read(addr)-1)&255; this.write(addr,value); this.compare(this.a,value); c=5; break;
+      case 0xd7: addr=this.readZeroPageX(); value=(this.read(addr)-1)&255; this.write(addr,value); this.compare(this.a,value); c=6; break;
+      case 0xcf: addr=this.fetch16(); value=(this.read(addr)-1)&255; this.write(addr,value); this.compare(this.a,value); c=6; break;
+      case 0xdf: addr=(this.fetch16()+this.x)&0xffff; value=(this.read(addr)-1)&255; this.write(addr,value); this.compare(this.a,value); c=7; break;
+      case 0xdb: addr=(this.fetch16()+this.y)&0xffff; value=(this.read(addr)-1)&255; this.write(addr,value); this.compare(this.a,value); c=7; break;
+      case 0xc3: addr=this.readIndirectX(); value=(this.read(addr)-1)&255; this.write(addr,value); this.compare(this.a,value); c=8; break;
+      case 0xd3: addr=this.readIndirectY(); value=(this.read(addr)-1)&255; this.write(addr,value); this.compare(this.a,value); c=8; break;
+      // Unofficial ISC: increment memory then SBC.
+      case 0xe7: addr=this.fetch(); value=(this.read(addr)+1)&255; this.write(addr,value); this.sbc(value); c=5; break;
+      case 0xf7: addr=this.readZeroPageX(); value=(this.read(addr)+1)&255; this.write(addr,value); this.sbc(value); c=6; break;
+      case 0xef: addr=this.fetch16(); value=(this.read(addr)+1)&255; this.write(addr,value); this.sbc(value); c=6; break;
+      case 0xff: addr=(this.fetch16()+this.x)&0xffff; value=(this.read(addr)+1)&255; this.write(addr,value); this.sbc(value); c=7; break;
+      case 0xfb: addr=(this.fetch16()+this.y)&0xffff; value=(this.read(addr)+1)&255; this.write(addr,value); this.sbc(value); c=7; break;
+      case 0xe3: addr=this.readIndirectX(); value=(this.read(addr)+1)&255; this.write(addr,value); this.sbc(value); c=8; break;
+      case 0xf3: addr=this.readIndirectY(); value=(this.read(addr)+1)&255; this.write(addr,value); this.sbc(value); c=8; break;
       default: throw new Error(`Unsupported CPU opcode ${op.toString(16).padStart(2,"0").toUpperCase()} at ${((this.pc-1)&0xffff).toString(16).padStart(4,"0").toUpperCase()}`);
     }
     this.p |= FLAGS.U; this.cycles += c; this.instructions++; return c;
