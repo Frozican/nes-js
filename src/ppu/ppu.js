@@ -23,6 +23,8 @@ export class PPU {
     this.scanline = 261;
     this.dot = 0;
     this.nmiCallback = null;
+    this.lastPpuAddress = 0;
+    this.ppuAddressLowDots = 0;
   }
 
   setCartridge(cart) { this.cartridge = cart; }
@@ -43,7 +45,7 @@ export class PPU {
 
       if (this.scanline >= 0 && this.scanline < SCREEN_HEIGHT && this.dot === 256) {
         this.renderScanline(this.scanline);
-        if (this.mask & 0x18) this.cartridge?.clockScanline?.(this.scanline);
+        // Mapper IRQ timing is driven by PPU A12 transitions in ppuRead().
       }
       if (this.scanline === 241 && this.dot === 2) {
         this.status |= 0x80;
@@ -75,6 +77,9 @@ export class PPU {
 
   ppuRead(address) {
     address &= FRAME_MASK;
+    // MMC3 IRQs are clocked by a filtered rising edge on PPU A12, not by
+    // one synthetic callback per visible scanline.
+    if (this.cartridge?.clockPpuAddress) this.cartridge.clockPpuAddress(address, this.dot);
     if (address < 0x2000) return this.cartridge ? this.cartridge.ppuRead(address) : 0;
     if (address < 0x3f00) {
       if (address >= 0x3000) address -= 0x1000;
@@ -86,6 +91,7 @@ export class PPU {
   ppuWrite(address, value) {
     address &= FRAME_MASK;
     value &= 0xff;
+    if (this.cartridge?.clockPpuAddress) this.cartridge.clockPpuAddress(address, this.dot);
     if (address < 0x2000) {
       this.cartridge?.ppuWrite(address, value);
     } else if (address < 0x3f00) {
@@ -289,6 +295,8 @@ export class PPU {
     this.writeToggle = 0;
     this.readBuffer = 0;
     this.ioLatch = 0;
+    this.lastPpuAddress = 0;
+    this.ppuAddressLowDots = 0;
     this.vram.fill(0);
     this.palette.fill(0);
     this.oam.fill(0);
