@@ -51,7 +51,14 @@ export class CPU6502 {
     const op = this.fetch(); let c = 2, addr, value;
     switch (op) {
       case 0x00: this.pc = (this.pc + 1) & 0xffff; this.push(this.pc >> 8); this.push(this.pc & 0xff); this.push(this.p | FLAGS.B | FLAGS.U); this.setFlag(FLAGS.I,true); this.pc=this.read(0xfffe)|(this.read(0xffff)<<8); c=7; break;
-      case 0xea: c=2; break;
+      case 0xea: case 0x1a: case 0x3a: case 0x5a: case 0x7a: case 0xda: case 0xfa: c=2; break;
+      // Unofficial 6502 NOPs used by commercial NES games, including Super Mario Bros. 3.
+      case 0x80: case 0x82: case 0x89: case 0xc2: case 0xe2: this.fetch(); c=2; break;
+      case 0x04: case 0x44: case 0x64: this.fetch(); c=3; break;
+      case 0x14: case 0x34: case 0x54: case 0x74: case 0xd4: case 0xf4: this.readZeroPageX(); c=4; break;
+      case 0x0c: this.fetch16(); c=4; break;
+      case 0x1c: case 0x3c: case 0x5c: case 0x7c: case 0xdc: case 0xfc:
+        addr=this.indexedAddress(this.fetch16(),this.x); c=4+(this.pageCrossed?1:0); break;
       case 0xa9: this.a=this.setZN(this.fetch()); c=2; break;
       case 0xa5: this.a=this.setZN(this.read(this.fetch())); c=3; break;
       case 0xad: this.a=this.setZN(this.read(this.fetch16())); c=4; break;
