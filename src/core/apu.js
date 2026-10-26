@@ -17,7 +17,7 @@ export class APU {
     this.dmc={timer:0,remaining:0,address:0xc000,currentAddress:0xc000,sampleLength:1,buffer:null,shift:0,bits:8,silence:true,output:0,irq:false,loop:false,rate:0};
     this.audioContext=null;this.node=null;this.gain=null;
   }
-  makePulse(){return {timer:0,phase:0,length:0,env:0,envDivider:0,envStart:false,sweepDivider:0,sweepReload:false};}
+  makePulse(){return {period:0,counter:0,phase:0,length:0,env:0,envDivider:0,envStart:false,sweepDivider:0,sweepReload:false};}
   unlock(){
     if(this.audioContext){if(this.audioContext.state==="suspended")this.audioContext.resume();return;}
     const AC=globalThis.AudioContext||globalThis.webkitAudioContext;if(!AC)return;
@@ -31,7 +31,7 @@ export class APU {
     if(a===0x4015){this.enabled=v&31;for(let i=0;i<2;i++)if(!(v&(1<<i)))this.pulse[i].length=0;if(!(v&4))this.triangle.length=0;if(!(v&8))this.noise.length=0;if(!(v&16))this.dmc.remaining=0;else if(!this.dmc.remaining)this.restartDMC();this.dmc.irq=false;return;}
     if(a===0x4017){this.frameMode5=!!(v&0x80);this.frameIRQInhibit=!!(v&0x40);if(this.frameIRQInhibit)this.frameIRQ=false;this.frameCycle=0;if(this.frameMode5)this.quarterFrame(),this.halfFrame();return;}
     this.regs[a-0x4000]=v;
-    if(a<=0x4007){const i=a>=0x4004?1:0,r=a-(i?0x4004:0),p=this.pulse[i];if(r===0)p.envStart=true;if(r===1)p.sweepReload=true;if(r===2)p.timer=(p.timer&0x700)|v;if(r===3){p.timer=(p.timer&255)|((v&7)<<8);if(this.enabled&(1<<i))p.length=LENGTH[v>>3];p.phase=0;p.envStart=true;}}
+    if(a<=0x4007){const i=a>=0x4004?1:0,r=a-(i?0x4004:0),p=this.pulse[i];if(r===0)p.envStart=true;if(r===1)p.sweepReload=true;if(r===2)p.period=(p.period&0x700)|v;if(r===3){p.period=(p.period&255)|((v&7)<<8);p.counter=p.period;if(this.enabled&(1<<i))p.length=LENGTH[v>>3];p.phase=0;p.envStart=true;}}
     else if(a<=0x400b){if(a===0x4008)this.triangle.linearReload=v&127;if(a===0x400a)this.triangle.timer=(this.triangle.timer&0x700)|v;if(a===0x400b){this.triangle.timer=(this.triangle.timer&255)|((v&7)<<8);if(this.enabled&4)this.triangle.length=LENGTH[v>>3];this.triangle.reloadFlag=true;}}
     else if(a===0x400c)this.noise.envStart=true;
     else if(a===0x400e)this.noise.period=v&15,this.noise.mode=!!(v&0x80);
@@ -53,7 +53,7 @@ export class APU {
     if(this.triangle.length&&!(this.regs[8]&0x80))this.triangle.length--;
     if(this.noise.length&&!(this.regs[12]&0x20))this.noise.length--;
   }
-  clockSweep(i){const p=this.pulse[i],r=this.regs[i*4+1],period=(r>>4)&7,shift=r&7,change=p.timer>>shift,target=p.timer+((r&8)?-change-(i===0?1:0):change);if(p.sweepDivider===0&&(r&0x80)&&shift&&p.timer>=8&&target<=0x7ff)p.timer=target;if(p.sweepDivider===0||p.sweepReload){p.sweepDivider=period;p.sweepReload=false;}else p.sweepDivider--;}
+  clockSweep(i){const p=this.pulse[i],r=this.regs[i*4+1],period=(r>>4)&7,shift=r&7,change=p.period>>shift,target=p.period+((r&8)?-change-(i===0?1:0):change);if(p.sweepDivider===0&&(r&0x80)&&shift&&p.period>=8&&target>=0&&target<=0x7ff)p.period=target;if(p.sweepDivider===0||p.sweepReload){p.sweepDivider=period;p.sweepReload=false;}else p.sweepDivider--;}
   restartDMC(){const d=this.dmc;d.currentAddress=d.address;d.remaining=d.sampleLength;}
   clock(cycles=1){
     for(let n=0;n<cycles;n++){
@@ -61,7 +61,7 @@ export class APU {
       // NTSC 4-step and 5-step sequencer events in CPU cycles.
       if(this.frameMode5){if([7457,14913,22371,37281].includes(this.frameCycle))this.quarterFrame();if([14913,37281].includes(this.frameCycle))this.halfFrame();if(this.frameCycle>=37282)this.frameCycle=0;}
       else {if([7457,14913,22371,29829].includes(this.frameCycle))this.quarterFrame();if([14913,29829].includes(this.frameCycle))this.halfFrame();if(this.frameCycle===29829&&!this.frameIRQInhibit)this.frameIRQ=true;if(this.frameCycle>=29830)this.frameCycle=0;}
-      for(const p of this.pulse){if(--p.timer<=0){p.timer=(p.timer&0x7ff)+1;p.phase=(p.phase+1)&7;}}
+      for(const p of this.pulse){if(--p.counter<=0){p.counter=p.period+1;p.phase=(p.phase+1)&7;}}
       const t=this.triangle;if(--t.counter<=0){t.counter=Math.max(1,t.timer);if(t.length&&t.linear&&t.timer>1)t.step=(t.step+1)&31;}
       const no=this.noise;if(--no.timer<=0){no.timer=NOISE_PERIOD[this.regs[14]&15];const tap=(this.regs[14]&0x80)?6:1;no.shift=(no.shift>>1)|(((no.shift^(no.shift>>tap))&1)<<14);}
       this.clockDMC();
@@ -70,14 +70,14 @@ export class APU {
   }
   clockDMC(){const d=this.dmc;if(--d.timer<=0){d.timer=DMC_PERIOD[d.rate];if(!d.silence){if(d.shift&1){if(d.output<=125)d.output+=2;}else if(d.output>=2)d.output-=2;d.shift>>=1;}if(--d.bits===0){d.bits=8;if(d.buffer===null)d.silence=true;else{d.silence=false;d.shift=d.buffer;d.buffer=null;}}}if(d.remaining&&d.buffer===null){d.buffer=0;d.currentAddress=(d.currentAddress+1)&0xffff;if(d.currentAddress===0)d.currentAddress=0x8000;if(--d.remaining===0){if(d.loop)this.restartDMC();else if(d.irqEnabled)d.irq=true;}}}
   mix(){
-    let p=0;for(let i=0;i<2;i++){const r=i*4,c=this.pulse[i],period=c.timer,shift=this.regs[r+1]&7,target=period+((this.regs[r+1]&8)?-(period>>shift)-(i===0?1:0):(period>>shift));if(c.length&&period>=8&&target<=0x7ff&&(DUTY[this.regs[r]>>6]&(1<<c.phase)))p+=((this.regs[r]&16)?this.regs[r]&15:c.env)/15;}
-    const t=this.triangle.length&&this.triangle.linear&&this.triangle.timer>1?TRI[this.triangle.step]/15:0;
-    const n=this.noise.length&&!(this.noise.shift&1)?((this.regs[12]&16)?this.regs[12]&15:this.noise.envelope)/15:0;
-    const d=this.dmc.output/127;
+    let p=0;for(let i=0;i<2;i++){const r=i*4,c=this.pulse[i],period=c.period,shift=this.regs[r+1]&7,target=period+((this.regs[r+1]&8)?-(period>>shift)-(i===0?1:0):(period>>shift));if(c.length&&period>=8&&target>=0&&target<=0x7ff&&(DUTY[this.regs[r]>>6]&(1<<c.phase)))p+=(this.regs[r]&16)?this.regs[r]&15:c.env;}
+    const t=this.triangle.length&&this.triangle.linear&&this.triangle.timer>1?TRI[this.triangle.step]:0;
+    const n=this.noise.length&&!(this.noise.shift&1)?((this.regs[12]&16)?this.regs[12]&15:this.noise.envelope):0;
+    const d=this.dmc.output;
     // Standard nonlinear pulse/TND approximation, normalized for Web Audio.
     const pulseOut=p?95.88/(8128/p+100):0, tndIn=t/8227+n/12241+d/22638;
     const tndOut=tndIn?159.79/(1/tndIn+100):0;
-    return Math.max(-1,Math.min(1,(pulseOut+tndOut)*2-0.35));
+    return Math.max(-1,Math.min(1,(pulseOut+tndOut)*2));
   }
   reset(){this.regs.fill(0);this.queue.length=0;this.samplePhase=0;this.cpuCycles=0;this.frameCycle=0;this.enabled=0;this.frameIRQ=false;this.dmc.irq=false;this.pulse=[this.makePulse(),this.makePulse()];Object.assign(this.triangle,{timer:0,counter:0,step:0,length:0,linear:0,linearReload:0,reloadFlag:false});Object.assign(this.noise,{timer:0,shift:1,length:0,envelope:0,envDivider:0,envStart:false});Object.assign(this.dmc,{timer:0,remaining:0,currentAddress:0xc000,buffer:null,shift:0,bits:8,silence:true,output:0,irq:false});}
 }
